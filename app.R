@@ -1,20 +1,45 @@
 library(shiny)
 library(stringr)
 
-ui <- fluidPage(
-    column(6,
-           textAreaInput(inputId = "input_text", label = NULL, width = "100%", height = "700px")
-           ),
-    column(6,
-           htmlOutput("glossed"))
-)
+texts <- list.files("texts/")
+fluidPage(
+    tabsetPanel(type = "tabs",
+                    tabPanel("texts",
+                             fluidRow(
+                                 column(5,
+                                 selectInput(inputId = "selected_text", 
+                                         label = NULL,
+                                         choices = texts)),
+                                 actionButton(inputId = "annotate_button",
+                                              label = "annotate text"),
+                                 actionButton(inputId = "save_button",
+                                              label = "save text")),
+                         column(6,
+                                textAreaInput(inputId = "input_text",
+                                              label = NULL,
+                                              width = "120%",
+                                              height = "700px",
+                                              value = "")),
+                         column(6,
+                                htmlOutput("glossed"))),
+    tabPanel("dictionary", DT::dataTableOutput("dictionary"))
+)) -> ui
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
+    dictionary <- readr::read_csv("dictionary.csv")
+    output$dictionary <- DT::renderDataTable(dictionary, options = list(pageLength = 100, dom = 'ftip'))
     output$glossed <- renderText({
-        orig_text <- input$input_text
-        # orig_text <- paste0(stringi::stri_rand_lipsum(5), collapse = "\n")
-        text <- str_replace_all(orig_text, "\\.\\.\\.", "…")
+        orig_text <- readLines(paste0("texts/", input$selected_text))
+        
+        if(input$input_text == ""){
+            text <- orig_text
+        } else{
+            text <- input$input_text
+        }
+        observeEvent(input$annotate_button, ignoreInit = TRUE, {
+            updateTextAreaInput(session, "input_text", value = orig_text)
+        })
+        text <- str_replace_all(text, "\\.\\.\\.", "…")
         inter <- unlist(str_extract_all(text, "[\\.\\?!…](\n)? ?"))
         inter <- str_remove_all(inter, "\n")
         text <- unlist(str_split(text, "[\\.\\?!…\n] ?"))
